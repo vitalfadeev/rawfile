@@ -6,8 +6,11 @@ import std.traits : isDynamicArray;
 /** */
 struct RawFile
 {
+    string path;
+
+
     /** */
-    void save( T )( T data )
+    void save( T )( ref T data )
     {
         // read T fields
         //   each field to ubyte
@@ -18,15 +21,22 @@ struct RawFile
         //     ubyte  to ubyte[1]
         //     struct to ubyte[] recursive
 
-        static
-        foreach ( TFIELD; Fields!T )
-        {
-            static
-            if ( is( TFIELD == string ) )
-            {
-                //
-            }
-        }
+        import std.file : write;
+
+        auto bytes = .save( data );
+
+        write( path, bytes );
+    }
+
+
+    /** */
+    void load( T )( ref T wanted )
+    {
+        import std.file : read;
+
+        auto raw = cast( ubyte[] ) read( path );
+
+        .load( wanted, raw );
     }
 }
 
@@ -284,3 +294,35 @@ unittest
     assert( symbolFiles.files[ 0 ].path == "AB" );
 }
 
+
+/// 
+unittest
+{
+    struct SymbolFile
+    {
+        size_t n;
+        string path;
+        ulong  mtime;
+    }
+
+    struct SymbolFiles
+    {
+        SymbolFile[] files;
+        alias files this;
+    }
+
+    auto first = 
+        SymbolFiles( [
+            SymbolFile( 7, "AB", 0xFF000000 )
+        ] );
+
+   auto rf = RawFile( r".rawfile.dat" );
+    rf.save( first );
+
+    SymbolFiles second;
+    rf.load( second );
+    assert( second.files.length   == first.files.length );
+    assert( second.files[0].n     == first.files[0].n );
+    assert( second.files[0].path  == first.files[0].path );
+    assert( second.files[0].mtime == first.files[0].mtime );
+}

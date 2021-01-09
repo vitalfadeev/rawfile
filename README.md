@@ -2,6 +2,7 @@
 Serialize / deserialize struct | scalar type | string to raw bytes
 
 ```
+///
 unittest
 {
     // string
@@ -94,4 +95,36 @@ unittest
     assert( symbolFiles.files[ 0 ].path == "AB" );
 }
 
+
+/// 
+unittest
+{
+    struct SymbolFile
+    {
+        size_t n;
+        string path;
+        ulong  mtime;
+    }
+
+    struct SymbolFiles
+    {
+        SymbolFile[] files;
+        alias files this;
+    }
+
+    auto first = 
+        SymbolFiles( [
+            SymbolFile( 7, "AB", 0xFF000000 )
+        ] );
+
+   auto rf = RawFile( r".rawfile.dat" );
+    rf.save( first );
+
+    SymbolFiles second;
+    rf.load( second );
+    assert( second.files.length   == first.files.length );
+    assert( second.files[0].n     == first.files[0].n );
+    assert( second.files[0].path  == first.files[0].path );
+    assert( second.files[0].mtime == first.files[0].mtime );
+}
 ```
