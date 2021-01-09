@@ -1,0 +1,15 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/rawfile
+rawfile.so
+rawfile.dylib
+rawfile.dll
+rawfile.a
+rawfile.lib
+rawfile-test-*
+*.exe
+*.o
+*.obj
+*.lst
