@@ -1,6 +1,7 @@
 module rawfile;
 
 import std.traits : isDynamicArray;
+import std.stdio : writeln;
 
 
 /** */
@@ -55,28 +56,32 @@ ubyte[] save( T )( T data )
     // length of string
     bytes ~= .save( data.length );
 
-    // string, scalar[]
-    static
-    if ( is( T == string ) || __traits( isScalar, TElement ) )
+    // string data
+    if ( length > 0 )
     {    
-        // bytes of string
-        bytes ~= ( cast( ubyte* ) data.ptr )[ 0 .. length * TElement.sizeof ];
-    }
-
-    else // struct[]
-    static
-    if ( is( TElement == struct ) )
-    {
-        // bytes of string
-        foreach( element; data )
-        {
-            bytes ~= .save( element );
+        // string, scalar[]
+        static
+        if ( is( T == string ) || __traits( isScalar, TElement ) )
+        {    
+            // bytes of string
+            bytes ~= ( cast( ubyte* ) data.ptr )[ 0 .. length * TElement.sizeof ];
         }
-    }
 
-    else 
-    {
-        assert( 0, "unsupported" );
+        else // struct[]
+        static
+        if ( is( TElement == struct ) )
+        {
+            // bytes of string
+            foreach( element; data )
+            {
+                bytes ~= .save( element );
+            }
+        }
+
+        else 
+        {
+            assert( 0, "unsupported" );
+        }
     }
 
     return bytes;
@@ -101,36 +106,40 @@ void load( T )( ref T data, ref ubyte[] bytes )
     // length in bytes
     auto lenthInBytes = length * TElement.sizeof;
 
-    // string || scalar[]
-    static
-    if ( is( T == string ) || __traits( isScalar, TElement ) )
+    // string data
+    if ( length > 0 )
     {
-        data.length = length;
-
-        // bytes of string || bytes of scalar type
-        data = cast( T ) bytes[ 0 .. lenthInBytes ];
-        bytes.popFrontN( lenthInBytes );
-    }
-
-    else // struct[]
-    static
-    if ( is( TElement == struct ) )
-    {
-        TElement element;
-
-        data.length = 0;
-        data.reserve( length );
-
-        foreach ( i; 0 .. length )
+        // string || scalar[]
+        static
+        if ( is( T == string ) || __traits( isScalar, TElement ) )
         {
-            .load( element, bytes );
-            data ~= element;
-        }        
-    }
+            data.length = length;
 
-    else 
-    {
-        assert( 0, "unsupported" );
+            // bytes of string || bytes of scalar type
+            data = cast( T ) bytes[ 0 .. lenthInBytes ];
+            bytes.popFrontN( lenthInBytes );
+        }
+
+        else // struct[]
+        static
+        if ( is( TElement == struct ) )
+        {
+            TElement element;
+
+            data.length = 0;
+            data.reserve( length );
+
+            foreach ( i; 0 .. length )
+            {
+                .load( element, bytes );
+                data ~= element;
+            }        
+        }
+
+        else 
+        {
+            assert( 0, "unsupported" );
+        }    
     }
 }
 
@@ -168,15 +177,16 @@ ubyte[] save( T )( T data )
     if ( is( T == struct ) )
 {
     import std.traits : FieldNameTuple;
-    import std.traits : Fields;
 
     ubyte[] bytes;
+
+    writeln( T.stringof, ": " );
 
     // feilds
     static
     foreach ( field; FieldNameTuple!T )
     {
-        //alias member = __traits( getMember, data, field );
+        writeln( "  ", field, ": " );
         bytes ~= .save( __traits( getMember, data, field ) );
     }
 
@@ -196,7 +206,6 @@ void load( T )( ref T data, ref ubyte[] bytes )
     foreach ( field; FieldNameTuple!T )
     {
         .load( __traits( getMember, data, field ), bytes );
-        //bytes.popFrontN( typeof( __traits( getMember, data, field ) ).sizeof );
     }
 }
 
