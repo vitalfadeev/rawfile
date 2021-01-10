@@ -1,7 +1,6 @@
 module rawfile;
 
 import std.traits : isDynamicArray;
-import std.stdio : writeln;
 
 
 /** */
@@ -24,9 +23,9 @@ struct RawFile
 
         import std.file : write;
 
-        auto bytes = .save( data );
+        auto rawBytes = .save( data );
 
-        write( path, bytes );
+        write( path, rawBytes );
     }
 
 
@@ -35,30 +34,32 @@ struct RawFile
     {
         import std.file : read;
 
-        auto raw = cast( ubyte[] ) read( path );
+        auto rawBytes = cast( ubyte[] ) read( path );
 
-        .load( wanted, raw );
+        .load( wanted, rawBytes );
     }
 }
 
 
-// dynamic array, string, int[]
+// dynamic array, string, int[], struct[]
 /** */
-ubyte[] save( T )( T data )
+ubyte[] save( T )( ref T data )
     if ( isDynamicArray!T )
 {
-    alias TElement = typeof( data[0] );
-
     ubyte[] bytes;
 
-    auto length = data.length; // in bytes
+    typeof( data.length ) length = data.length; // in bytes for string, in T for T[]
 
     // length of string
-    bytes ~= .save( data.length );
+    bytes ~= .save( length );
 
-    // string data
+    // has data
     if ( length > 0 )
     {    
+        alias TElement = typeof( data[0] );
+
+        import std.range : padLeft;
+
         // string, scalar[]
         static
         if ( is( T == string ) || __traits( isScalar, TElement ) )
@@ -71,8 +72,8 @@ ubyte[] save( T )( T data )
         static
         if ( is( TElement == struct ) )
         {
-            // bytes of string
-            foreach( element; data )
+            // save each element
+            foreach ( ref element; data )
             {
                 bytes ~= .save( element );
             }
@@ -88,7 +89,7 @@ ubyte[] save( T )( T data )
 }
 
 
-// dynamic array, string, int[]
+// dynamic array, string, int[], struct[]
 /** */
 void load( T )( ref T data, ref ubyte[] bytes )
     if ( isDynamicArray!T )
@@ -100,11 +101,11 @@ void load( T )( ref T data, ref ubyte[] bytes )
     alias TElement = typeof( data[0] );
 
     // length of string
-    size_t length;
+    typeof( data.length ) length;
     .load( length, bytes );
 
     // length in bytes
-    auto lenthInBytes = length * TElement.sizeof;
+    auto lengthInBytes = length * TElement.sizeof;
 
     // string data
     if ( length > 0 )
@@ -113,27 +114,21 @@ void load( T )( ref T data, ref ubyte[] bytes )
         static
         if ( is( T == string ) || __traits( isScalar, TElement ) )
         {
-            data.length = length;
-
             // bytes of string || bytes of scalar type
-            data = cast( T ) bytes[ 0 .. lenthInBytes ];
-            bytes.popFrontN( lenthInBytes );
+            data = ( cast( T ) bytes )[ 0 .. length ];
+            bytes.popFrontN( lengthInBytes );
         }
 
         else // struct[]
         static
         if ( is( TElement == struct ) )
         {
-            TElement element;
+            data.length = length;
 
-            data.length = 0;
-            data.reserve( length );
-
-            foreach ( i; 0 .. length )
+            foreach ( ref element; data )
             {
                 .load( element, bytes );
-                data ~= element;
-            }        
+            }
         }
 
         else 
@@ -146,7 +141,7 @@ void load( T )( ref T data, ref ubyte[] bytes )
 
 // ubyte, byte, ushort, short, uint, int, ulong, long, char, bool, float, void*, enum, int4
 /** */
-ubyte[] save( T )( T data )
+ubyte[] save( T )( ref T data )
     if ( __traits( isScalar, T ) )
 {
     ubyte[] bytes;
@@ -173,20 +168,17 @@ void load( T )( ref T data, ref ubyte[] bytes )
 
 // struct
 /** */
-ubyte[] save( T )( T data )
+ubyte[] save( T )( ref T data)
     if ( is( T == struct ) )
 {
     import std.traits : FieldNameTuple;
 
     ubyte[] bytes;
 
-    writeln( T.stringof, ": " );
-
     // feilds
     static
     foreach ( field; FieldNameTuple!T )
     {
-        writeln( "  ", field, ": " );
         bytes ~= .save( __traits( getMember, data, field ) );
     }
 
@@ -199,13 +191,12 @@ void load( T )( ref T data, ref ubyte[] bytes )
     if ( is( T == struct ) )
 {
     import std.traits : FieldNameTuple;
-    //import std.range  : popFrontN;
 
     // feilds
     static
     foreach ( field; FieldNameTuple!T )
     {
-        .load( __traits( getMember, data, field ), bytes );
+        .load( __traits( getMember, data,  field ), bytes );
     }
 }
 
@@ -325,7 +316,7 @@ unittest
             SymbolFile( 7, "AB", 0xFF000000 )
         ] );
 
-   auto rf = RawFile( r".rawfile.dat" );
+    auto rf = RawFile( r".rawfile.dat" );
     rf.save( first );
 
     SymbolFiles second;
@@ -335,3 +326,4 @@ unittest
     assert( second.files[0].path  == first.files[0].path );
     assert( second.files[0].mtime == first.files[0].mtime );
 }
+
