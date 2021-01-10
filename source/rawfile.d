@@ -1,6 +1,7 @@
 module rawfile;
 
 import std.traits : isDynamicArray;
+import std.stdio : writeln;
 
 
 /** */
@@ -23,7 +24,8 @@ struct RawFile
 
         import std.file : write;
 
-        auto rawBytes = .save( data );
+        ubyte[] rawBytes;
+        rawBytes = .save( data, rawBytes );
 
         write( path, rawBytes );
     }
@@ -43,22 +45,20 @@ struct RawFile
 
 // dynamic array, string, int[], struct[]
 /** */
-ubyte[] save( T )( ref T data )
+ubyte[] save( T )( ref T data, ref ubyte[] bytes )
     if ( isDynamicArray!T )
 {
-    ubyte[] bytes;
-
     typeof( data.length ) length = data.length; // in bytes for string, in T for T[]
 
     // length of string
-    bytes ~= .save( length );
+    bytes = .save( length, bytes );
 
     // has data
     if ( length > 0 )
     {    
         alias TElement = typeof( data[0] );
 
-        import std.range : padLeft;
+        bytes.reserve( bytes.length + length * TElement.sizeof );
 
         // string, scalar[]
         static
@@ -75,7 +75,7 @@ ubyte[] save( T )( ref T data )
             // save each element
             foreach ( ref element; data )
             {
-                bytes ~= .save( element );
+                bytes = .save( element, bytes );
             }
         }
 
@@ -141,10 +141,10 @@ void load( T )( ref T data, ref ubyte[] bytes )
 
 // ubyte, byte, ushort, short, uint, int, ulong, long, char, bool, float, void*, enum, int4
 /** */
-ubyte[] save( T )( ref T data )
+ubyte[] save( T )( ref T data, ref ubyte[] bytes )
     if ( __traits( isScalar, T ) )
 {
-    ubyte[] bytes;
+    bytes.reserve( bytes.length + T.sizeof );
 
     // byte
     bytes ~= ( cast( ubyte* ) &data )[ 0 .. T.sizeof ];
@@ -168,18 +168,18 @@ void load( T )( ref T data, ref ubyte[] bytes )
 
 // struct
 /** */
-ubyte[] save( T )( ref T data)
+ubyte[] save( T )( ref T data, ref ubyte[] bytes )
     if ( is( T == struct ) )
 {
     import std.traits : FieldNameTuple;
 
-    ubyte[] bytes;
+    bytes.reserve( bytes.length + T.sizeof );
 
     // feilds
     static
     foreach ( field; FieldNameTuple!T )
     {
-        bytes ~= .save( __traits( getMember, data, field ) );
+        bytes = .save( __traits( getMember, data, field ), bytes );
     }
 
     return bytes;
@@ -207,7 +207,8 @@ unittest
     // string
     string s = "AB";
     
-    auto raw = s.save();
+    ubyte[] raw;
+    raw = s.save( raw );
     assert( raw == [ 2, 0, 0, 0, 0, 0, 0, 0, 'A', 'B' ] );
     s.load( raw );
     assert( s == "AB" );
@@ -215,7 +216,7 @@ unittest
     // ubyte
     ubyte theByte = 7;
 
-    raw = theByte.save();
+    raw = theByte.save( raw );
     assert( raw == [ 7 ] );
     theByte.load( raw );
     assert( theByte == 7 );
@@ -228,7 +229,7 @@ unittest
 
     Struct theStruct = Struct( 7 );
 
-    raw = theStruct.save();
+    raw = theStruct.save( raw );
     assert( raw == [ 7 ] );
     theStruct.load( raw );
     assert( theStruct.byteField == 7 );
@@ -242,7 +243,7 @@ unittest
 
     Struct2 theStruct2 = Struct2( 7, "AB" );
 
-    raw = theStruct2.save();
+    raw = theStruct2.save( raw );
     assert( raw == [ 7, 2, 0, 0, 0, 0, 0, 0, 0, 'A', 'B' ] );
     theStruct2.load( raw );
     assert( theStruct2.byteField == 7 );
@@ -258,7 +259,7 @@ unittest
 
     SymbolFile symbolFile = SymbolFile( 7, "AB", 0xFF000000 );
 
-    raw = symbolFile.save();
+    raw = symbolFile.save( raw );
     assert( raw == [ 
         7, 0, 0, 0, 0, 0, 0, 0, 
         2, 0, 0, 0, 0, 0, 0, 0, 'A', 'B', 
@@ -281,7 +282,7 @@ unittest
             SymbolFile( 7, "AB", 0xFF000000 )
         ] );
 
-    raw = symbolFiles.save();
+    raw = symbolFiles.save( raw );
     assert( raw == [ 
         1, 0, 0, 0, 0, 0, 0, 0, 
         7, 0, 0, 0, 0, 0, 0, 0, 
